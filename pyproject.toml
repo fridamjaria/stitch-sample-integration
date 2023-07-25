@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "stitch-sample-integration"
+version = "0.1.0"
+description = ""
+authors = ["Frida Mjaria <frida@stitch.money>"]
+readme = "README.md"
+packages = [
+    { include = "src" }
+]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+fastapi = "^0.100.0"
+uvicorn = "^0.23.1"
+requests = "^2.31.0"
+python-dotenv = "^1.0.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+main = "src.main:main"
