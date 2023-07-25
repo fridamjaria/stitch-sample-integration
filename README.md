@@ -1,2 +1,2 @@
 # stitch-sample-integration
-Python sample integration with Stitch products
+Sample integration with Stitch products using python and FastAPI
