@@ -5,12 +5,12 @@ import requests
 import secrets
 import uvicorn
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Body
 from graphqlclient import GraphQLClient
 from urllib.parse import urlencode
 
 from settings import settings
-from src.models import PaymentRequestWebhookResponseModel
+from src.models import PaymentRequestWebhookResponseModel, GeneratePaymentRequestUrlModel
 
 
 app = FastAPI(title="Stitch sample integration")
@@ -78,8 +78,10 @@ async def get_user_authorization_url():
     
     return authorization_url
 
-@app.get("/payment_request")
-async def generate_payment_request_url():
+
+
+@app.post("/payment_request")
+async def generate_payment_request_url(body: GeneratePaymentRequestUrlModel = Body(...)):
     client_token = get_access_token()
     graphql_client.inject_token(f"Bearer {client_token['access_token']}")
     print("The access token is: ", client_token['access_token'])
@@ -120,16 +122,16 @@ async def generate_payment_request_url():
     
     variables = {
         "amount": {
-            "quantity": 1,
-            "currency": "ZAR"
+            "quantity": body.amount,
+            "currency": body.currency,
         },
-        "payerReference": "KombuchaFizz",
-        "beneficiaryReference": "Joe-Fizz-01",
-        "externalReference": "example-e32e5478-325b-4869-a53e-2021727d2afe",
-        "beneficiaryName": "FizzBuzz Co.",
-        "beneficiaryBankId": "fnb",
-        "beneficiaryAccountNumber": "123456789",
-        "merchant": "{merchantId: '123', merchantName: 'Acme Inc'}"
+        "payerReference": body.payment_reference,
+        "beneficiaryReference": body.beneficiary_name,
+        "externalReference": body.external_reference,
+        "beneficiaryName": body.beneficiary_name,
+        "beneficiaryBankId": body.beneficiary_bank_id,
+        "beneficiaryAccountNumber": body.beneficiary_account_nummber,
+        "merchant": body.merchant,
     }
     
     response = graphql_client.execute(query, variables)
