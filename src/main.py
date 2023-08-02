@@ -5,20 +5,26 @@ import requests
 import secrets
 import uvicorn
 
-from fastapi import FastAPI, Body
-from graphqlclient import GraphQLClient
-from urllib.parse import urlencode
+from fastapi import FastAPI, Body, HTTPException
+from urllib.parse import quote, urlencode
 
 from settings import settings
-from src.models import PaymentRequestWebhookResponseModel, GeneratePaymentRequestUrlModel
+from src.models import (
+    PaymentRequestWebhookResponse, 
+    GeneratePaymentRequestUrlRequest, 
+    PaymentInitiationRequest
+)
 
 
 app = FastAPI(title="Stitch sample integration")
 
-graphql_client = GraphQLClient("https://api.stitch.money/graphql")
+STITCH_API_URL = "https://api.stitch.money/graphql"
+STITCH_AUTH_URL = "https://secure.stitch.money/connect/token"
+REDIRECT_URI = "https://localhost:8000/return"
+
 
 def get_access_token():
-    STITCH_AUTH_URL = "https://secure.stitch.money/connect/token"
+    
     response = requests.post(STITCH_AUTH_URL, data={
         "client_id": settings.STITCH_CLIENT_ID,
         "scope": "client_paymentrequest",
@@ -31,7 +37,7 @@ def get_access_token():
     response.raise_for_status()
     
     return response.json()
-    
+
 
 @app.get("/client_token")
 async def get_client_access_token():
@@ -81,11 +87,9 @@ async def get_user_authorization_url():
 
 
 @app.post("/payment_request")
-async def generate_payment_request_url(body: GeneratePaymentRequestUrlModel = Body(...)):
+async def generate_payment_request_url(body: GeneratePaymentRequestUrlRequest = Body(...)):
     client_token = get_access_token()
-    graphql_client.inject_token(f"Bearer {client_token['access_token']}")
-    print("The access token is: ", client_token['access_token'])
-    print("___________________________________________________________")
+    bearer_token = f"Bearer {client_token['access_token']}"
     
     query = """
         mutation CreatePaymentRequest(
@@ -111,12 +115,12 @@ async def generate_payment_request_url(body: GeneratePaymentRequestUrlModel = Bo
                     }
                 },
                 merchant: $merchant
-                }) {
+            }) {
                 paymentInitiationRequest {
-                id
-                url
+                    id
+                    url
                 }
-            }
+            }  
         }
     """
     
@@ -126,7 +130,7 @@ async def generate_payment_request_url(body: GeneratePaymentRequestUrlModel = Bo
             "currency": body.currency,
         },
         "payerReference": body.payment_reference,
-        "beneficiaryReference": body.beneficiary_name,
+        "beneficiaryReference": body.beneficiary_reference,
         "externalReference": body.external_reference,
         "beneficiaryName": body.beneficiary_name,
         "beneficiaryBankId": body.beneficiary_bank_id,
@@ -134,9 +138,27 @@ async def generate_payment_request_url(body: GeneratePaymentRequestUrlModel = Bo
         "merchant": body.merchant,
     }
     
-    response = graphql_client.execute(query, variables)
+    headers = { 
+        "Content-Type": "application/json",
+        "Authorization": bearer_token
+    }
     
-    return json.loads(response)
+    response = requests.post(
+        url=STITCH_API_URL, 
+        data=json.dumps({"query": query, "variables": variables}), 
+        headers=headers
+    )
+    
+    response_data = response.json()
+    
+    if "errors" in response_data:
+        raise HTTPException(status_code=500, detail=response_data)
+    
+    payment_initiation_request = PaymentInitiationRequest.model_validate(
+        response_data["data"]["clientPaymentInitiationRequestCreate"]["paymentInitiationRequest"]
+    )
+
+    return f"{payment_initiation_request.url}?redirect_uri={quote(REDIRECT_URI)}"
     
     
 # @app.post("/subscribe/payment")
@@ -170,10 +192,7 @@ async def generate_payment_request_url(body: GeneratePaymentRequestUrlModel = Bo
     
 
 @app.get("/return")
-async def return_url():
-    """
-    Method to handle redirect once the user has completed payment
-    """
+async def redirect():
     return 200, "Ok"
 
 
