@@ -10,8 +10,8 @@ from urllib.parse import quote, urlencode
 
 from settings import settings
 from src.models import (
-    PaymentRequestWebhookResponse, 
-    GeneratePaymentRequestUrlRequest, 
+    GeneratePaymentRequestUrlRequest,
+    GeneratePaymentRequestUrlResponse,
     PaymentInitiationRequest
 )
 
@@ -86,7 +86,7 @@ async def get_user_authorization_url():
 
 
 
-@app.post("/payment_request")
+@app.post("/payment_request", response_model=GeneratePaymentRequestUrlResponse)
 async def generate_payment_request_url(body: GeneratePaymentRequestUrlRequest = Body(...)):
     client_token = get_access_token()
     bearer_token = f"Bearer {client_token['access_token']}"
@@ -158,7 +158,10 @@ async def generate_payment_request_url(body: GeneratePaymentRequestUrlRequest = 
         response_data["data"]["clientPaymentInitiationRequestCreate"]["paymentInitiationRequest"]
     )
 
-    return f"{payment_initiation_request.url}?redirect_uri={quote(REDIRECT_URI)}"
+    return GeneratePaymentRequestUrlResponse(
+        id=payment_initiation_request.id, 
+        url=f"{payment_initiation_request.url}?redirect_uri={quote(REDIRECT_URI)}"
+    )
     
     
 # @app.post("/subscribe/payment")

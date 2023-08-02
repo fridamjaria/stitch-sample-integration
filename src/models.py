@@ -23,3 +23,8 @@ class GeneratePaymentRequestUrlRequest(BaseModel):
 class PaymentInitiationRequest(BaseModel):
     id: str
     url: str
+
+
+class GeneratePaymentRequestUrlResponse(BaseModel):
+    id: str
+    url: str
