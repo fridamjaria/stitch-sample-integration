@@ -10,9 +10,11 @@ from urllib.parse import quote, urlencode
 
 from settings import settings
 from src.models import (
+    CreateWebhookSubscriptionRequest,
     GeneratePaymentRequestUrlRequest,
     GeneratePaymentRequestUrlResponse,
-    PaymentInitiationRequest
+    PaymentInitiationRequest,
+    PaymentRequestWebhookResponse
 )
 
 
@@ -37,6 +39,19 @@ def get_access_token():
     response.raise_for_status()
     
     return response.json()
+
+
+def get_headers():
+    client_token = get_access_token()
+    bearer_token = f"Bearer {client_token['access_token']}"
+    print("The access token is: ", bearer_token)
+    print("_______________________________________________________")
+    headers = { 
+        "Content-Type": "application/json",
+        "Authorization": bearer_token
+    }
+    
+    return headers
 
 
 @app.get("/client_token")
@@ -85,12 +100,8 @@ async def get_user_authorization_url():
     return authorization_url
 
 
-
 @app.post("/payment_request", response_model=GeneratePaymentRequestUrlResponse)
 async def generate_payment_request_url(body: GeneratePaymentRequestUrlRequest = Body(...)):
-    client_token = get_access_token()
-    bearer_token = f"Bearer {client_token['access_token']}"
-    
     query = """
         mutation CreatePaymentRequest(
             $amount: MoneyInput!,
@@ -138,15 +149,10 @@ async def generate_payment_request_url(body: GeneratePaymentRequestUrlRequest = 
         "merchant": body.merchant,
     }
     
-    headers = { 
-        "Content-Type": "application/json",
-        "Authorization": bearer_token
-    }
-    
     response = requests.post(
         url=STITCH_API_URL, 
         data=json.dumps({"query": query, "variables": variables}), 
-        headers=headers
+        headers=get_headers()
     )
     
     response_data = response.json()
@@ -164,35 +170,70 @@ async def generate_payment_request_url(body: GeneratePaymentRequestUrlRequest = 
     )
     
     
-# @app.post("/subscribe/payment")
-# async def create_payment_subscription():
-#     webhook_return_url = "https://localhost:8000/webhoooks/payment"
+@app.post("/webhooks/subscribe")
+async def create_webhook_subscription(data: CreateWebhookSubscriptionRequest):
+    query = f"""
+        mutation clientWebhookAdd {{
+            clientWebhookAdd(input: {{
+                url: "{data.url}",
+                filterTypes: {json.dumps([event.value for event in data.events])}
+            }}) {{
+                url
+                filterTypes
+                secret
+                id
+            }}
+        }}
+    """
+    
+    response = requests.post(
+        url=STITCH_API_URL, 
+        data=json.dumps({"query": query}), 
+        headers=get_headers()
+    )
+    
+    response_data = response.json()
+    
+    if "errors" in response_data:
+        raise HTTPException(status_code=500, detail=response_data)
+    
+    return response.json()
 
-#     query = f"""
-#         mutation clientWebhookAdd {{
-#             clientWebhookAdd(input: {{
-#                 url: {webhook_return_url},
-#                 filterTypes: ["payments"]
-#             }}) {{
-#                 url
-#                 filterTypes
-#                 secret
-#                 id
-#             }}
-#         }}
-#     """
-    
-#     client_token = get_access_token()
-#     graphql_client.inject_token(f"Bearer {client_token['access_token']}")
-#     response = graphql_client.execute(query)
-    
-#     return json.loads(response)
-    
 
-# @app.post("/webhoooks/payment")
-# async def webhooks_payment_request(data: PaymentRequestWebhookResponseModel):
-#     return data
+@app.get("/webhooks/dashboard_link")
+async def generate_dashboard_link():
+    query = """
+        query GenerateDashboardLink {
+            client {
+                webhookLogin {
+                    url
+                }
+            }
+        }
+    """
+    # query = f"""
+    #     query GenerateDashboardLink {{
+    #         client {{
+    #             webhookLogin {{
+    #             url
+    #             }}
+    #         }}
+    #     }}
+    # """
     
+    response = requests.post(
+        url=STITCH_API_URL, 
+        data=json.dumps({"query": query}), 
+        headers=get_headers()
+    )
+    
+    response_data = response.json()
+    
+    if "errors" in response_data:
+        raise HTTPException(status_code=500, detail=response_data)
+    
+    return response.json()
+
 
 @app.get("/return")
 async def redirect():

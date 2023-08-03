@@ -1,3 +1,6 @@
+import json
+
+from enum import Enum
 from pydantic import BaseModel, Field
 
 
@@ -28,3 +31,20 @@ class PaymentInitiationRequest(BaseModel):
 class GeneratePaymentRequestUrlResponse(BaseModel):
     id: str
     url: str
+
+
+class StitchWebhookEvents(str, Enum):
+    payment = "payment"
+    payment_confirmation = "payment.confirmation"
+    payment_initiation = "payment-initiation"
+    payment_initiation_confirmation = "payment-initiation.confirmation"
+    refund = "refund"
+    disbursement = "disbursement"
+    settlement = "settlement"
+    direct_deposit = "direct-deposit"
+    transaction = "transaction"
+
+
+class CreateWebhookSubscriptionRequest(BaseModel):
+    url: str = Field(..., example="https://webhook.site/43ad7b98-f9e6-410f-83fa-cc2568b348bb")
+    events: list[StitchWebhookEvents] = Field(..., example=json.dumps([event.value for event in StitchWebhookEvents]))
