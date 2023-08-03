@@ -14,7 +14,7 @@ from src.models import (
     GeneratePaymentRequestUrlRequest,
     GeneratePaymentRequestUrlResponse,
     PaymentInitiationRequest,
-    PaymentRequestWebhookResponse
+    CreateRefundRequest
 )
 
 
@@ -25,11 +25,10 @@ STITCH_AUTH_URL = "https://secure.stitch.money/connect/token"
 REDIRECT_URI = "https://localhost:8000/return"
 
 
-def get_access_token():
-    
+def get_access_token(scope: str):
     response = requests.post(STITCH_AUTH_URL, data={
         "client_id": settings.STITCH_CLIENT_ID,
-        "scope": "client_paymentrequest",
+        "scope": scope,
         "client_secret": settings.STITCH_CLIENT_SECRET,
         "audience": STITCH_AUTH_URL,
         "grant_type": "client_credentials",
@@ -41,22 +40,9 @@ def get_access_token():
     return response.json()
 
 
-def get_headers():
-    client_token = get_access_token()
-    bearer_token = f"Bearer {client_token['access_token']}"
-    print("The access token is: ", bearer_token)
-    print("_______________________________________________________")
-    headers = { 
-        "Content-Type": "application/json",
-        "Authorization": bearer_token
-    }
-    
-    return headers
-
-
 @app.get("/client_token")
 async def get_client_access_token():
-    return get_access_token()
+    return get_access_token(scope="client_paymentrequest")
 
 
 @app.get("/user_auth_url")
@@ -102,6 +88,14 @@ async def get_user_authorization_url():
 
 @app.post("/payment_request", response_model=GeneratePaymentRequestUrlResponse)
 async def generate_payment_request_url(body: GeneratePaymentRequestUrlRequest = Body(...)):
+    client_token = get_access_token(scope="client_paymentrequest")
+    bearer_token = f"Bearer {client_token['access_token']}"
+    
+    headers = { 
+        "Content-Type": "application/json",
+        "Authorization": bearer_token
+    }
+    
     query = """
         mutation CreatePaymentRequest(
             $amount: MoneyInput!,
@@ -152,7 +146,7 @@ async def generate_payment_request_url(body: GeneratePaymentRequestUrlRequest = 
     response = requests.post(
         url=STITCH_API_URL, 
         data=json.dumps({"query": query, "variables": variables}), 
-        headers=get_headers()
+        headers=headers
     )
     
     response_data = response.json()
@@ -186,10 +180,18 @@ async def create_webhook_subscription(data: CreateWebhookSubscriptionRequest):
         }}
     """
     
+    client_token = get_access_token(scope="client_paymentrequest")
+    bearer_token = f"Bearer {client_token['access_token']}"
+
+    headers = { 
+        "Content-Type": "application/json",
+        "Authorization": bearer_token
+    }
+    
     response = requests.post(
         url=STITCH_API_URL, 
         data=json.dumps({"query": query}), 
-        headers=get_headers()
+        headers=headers
     )
     
     response_data = response.json()
@@ -216,6 +218,66 @@ async def generate_dashboard_link():
         url=STITCH_API_URL, 
         data=json.dumps({"query": query}), 
         headers=get_headers()
+    )
+    
+    response_data = response.json()
+    
+    if "errors" in response_data:
+        raise HTTPException(status_code=500, detail=response_data)
+    
+    return response.json()
+
+@app.post("/refund_request")
+async def create_refund(data: CreateRefundRequest):
+    query = """
+        mutation CreateRefund(
+            $amount: MoneyInput!,
+            $reason: RefundReason!,
+            $nonce: String!,
+            $beneficiaryReference: String!,
+            $paymentRequestId: ID!
+        ) {
+            clientRefundInitiate(input: {
+                amount: $amount,
+                reason: $reason,
+                nonce: $nonce,
+                beneficiaryReference: $beneficiaryReference,
+                paymentRequestId: $paymentRequestId
+            }) {
+                refund {
+                    id
+                    paymentInitiationRequest {
+                        id
+                    }
+                }
+            }
+        }
+    """
+    
+    variables = {
+        "amount": {
+            "quantity": data.amount,
+            "currency": data.currency
+        },
+        "reason": data.reason,
+        "nonce": data.nonce,
+        "beneficiaryReference": data.beneficiary_reference,
+        "paymentRequestId": data.payment_request_id
+    }
+    
+    client_token = get_access_token(scope="client_paymentrequest")
+    bearer_token = f"Bearer {client_token['access_token']}"
+    print("The access token is: ", bearer_token)
+    print("_______________________________________________________")
+    headers = { 
+        "Content-Type": "application/json",
+        "Authorization": bearer_token
+    }
+    
+    response = requests.post(
+        url=STITCH_API_URL, 
+        data=json.dumps({"query": query, "variables": variables}), 
+        headers=headers
     )
     
     response_data = response.json()

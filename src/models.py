@@ -48,3 +48,12 @@ class StitchWebhookEvents(str, Enum):
 class CreateWebhookSubscriptionRequest(BaseModel):
     url: str = Field(..., example="https://webhook.site/43ad7b98-f9e6-410f-83fa-cc2568b348bb")
     events: list[StitchWebhookEvents] = Field(..., example=json.dumps([event.value for event in StitchWebhookEvents]))
+
+
+class CreateRefundRequest(BaseModel):
+    amount: int = Field(..., example=1)
+    currency: str = Field(..., example="ZAR")
+    reason: str = Field(..., example="fraudulent")
+    nonce: str = Field(..., example="XcnQUSskj4F4mF6K")
+    beneficiary_reference: str = Field(..., example="refund-test-reference")
+    payment_request_id: str
