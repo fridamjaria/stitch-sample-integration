@@ -211,15 +211,6 @@ async def generate_dashboard_link():
             }
         }
     """
-    # query = f"""
-    #     query GenerateDashboardLink {{
-    #         client {{
-    #             webhookLogin {{
-    #             url
-    #             }}
-    #         }}
-    #     }}
-    # """
     
     response = requests.post(
         url=STITCH_API_URL, 
