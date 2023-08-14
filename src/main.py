@@ -215,10 +215,18 @@ async def generate_dashboard_link():
         }
     """
     
+    client_token = get_access_token(scope="client_paymentrequest")
+    bearer_token = f"Bearer {client_token['access_token']}"
+
+    headers = { 
+        "Content-Type": "application/json",
+        "Authorization": bearer_token
+    }
+    
     response = requests.post(
         url=STITCH_API_URL, 
         data=json.dumps({"query": query}), 
-        headers=get_headers()
+        headers=headers
     )
     
     response_data = response.json()
