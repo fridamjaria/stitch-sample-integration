@@ -57,3 +57,12 @@ class CreateRefundRequest(BaseModel):
     nonce: str = Field(..., example="XcnQUSskj4F4mF6K")
     beneficiary_reference: str = Field(..., example="refund-test-reference")
     payment_request_id: str
+
+
+class CreateCardPaymentRequest(BaseModel):
+    amount: int = Field(..., example=1)
+    currency: str = Field(..., example="ZAR")
+    external_reference: str = Field(..., example="random-external-id")
+    merchant: str = Field(..., example="Acme Inc")
+    payer_reference: str = Field(..., example="payer-ref")
+    beneficiary_reference: str = Field(..., example="ben-ref")

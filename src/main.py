@@ -14,7 +14,8 @@ from src.models import (
     GeneratePaymentRequestUrlRequest,
     GeneratePaymentRequestUrlResponse,
     PaymentInitiationRequest,
-    CreateRefundRequest
+    CreateRefundRequest,
+    CreateCardPaymentRequest
 )
 
 
@@ -86,7 +87,7 @@ async def get_user_authorization_url():
     return authorization_url
 
 
-@app.post("/payment_request", response_model=GeneratePaymentRequestUrlResponse)
+@app.post("/payments/pay_by_bank", response_model=GeneratePaymentRequestUrlResponse)
 async def generate_payment_request_url(body: GeneratePaymentRequestUrlRequest = Body(...)):
     client_token = get_access_token(scope="client_paymentrequest")
     bearer_token = f"Bearer {client_token['access_token']}"
@@ -267,8 +268,69 @@ async def create_refund(data: CreateRefundRequest):
     
     client_token = get_access_token(scope="client_paymentrequest")
     bearer_token = f"Bearer {client_token['access_token']}"
-    print("The access token is: ", bearer_token)
-    print("_______________________________________________________")
+    
+    headers = { 
+        "Content-Type": "application/json",
+        "Authorization": bearer_token
+    }
+    
+    response = requests.post(
+        url=STITCH_API_URL, 
+        data=json.dumps({"query": query, "variables": variables}), 
+        headers=headers
+    )
+    
+    response_data = response.json()
+    
+    if "errors" in response_data:
+        raise HTTPException(status_code=500, detail=response_data)
+    
+    return response.json()
+
+@app.post("/payments/card")
+async def create_card_payment_request(data: CreateCardPaymentRequest):
+    query = """
+        mutation CreatePaymentRequest(
+            $amount: MoneyInput!,
+            $externalReference: String,
+            $merchant: String,
+            $beneficiaryReference: String!,
+            $payerReference: String!
+        ) {
+            clientPaymentInitiationRequestCreate(
+                input: {
+                    amount: $amount
+                    externalReference: $externalReference
+                    merchant: $merchant
+                    paymentMethods: {
+                        card: { enabled: true }
+                    }
+                    beneficiaryReference: $beneficiaryReference
+                    payerReference: $payerReference
+                }
+            ) {
+                paymentInitiationRequest {
+                    id
+                    url
+                }
+            }
+        }
+    """
+    
+    variables = {
+        "amount": {
+            "quantity": data.amount,
+            "currency": data.currency
+        },
+        "externalReference": "example-e32e5478-325b-4869-a53e-2021727d2afe",
+        "merchant": data.merchant,
+        "payerReference": data.payer_reference,
+        "beneficiaryReference": data.beneficiary_reference
+    }
+    
+    client_token = get_access_token(scope="client_paymentrequest")
+    bearer_token = f"Bearer {client_token['access_token']}"
+    
     headers = { 
         "Content-Type": "application/json",
         "Authorization": bearer_token
