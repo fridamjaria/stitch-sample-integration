@@ -1,4 +1,4 @@
-# stitch-sample-integration
+# Stitch sample integration
 Sample integration with Stitch products using python (3.10) and FastAPI. Make sure you have python and poetry installed on your system.
 
 To initialize the virtual env, run: `poetry shell`
